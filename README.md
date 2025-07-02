@@ -17,3 +17,42 @@ Follow these steps to run the project locally.
 ```bash
 git clone https://github.com/Happu2/Timer-app.git
 cd Timer-app
+
+
+### 2. Install Dependencies
+
+Make sure you have npm or yarn installed.
+
+bash
+Copy
+Edit
+npm install
+# or
+yarn install
+3. Run the App
+For iOS:
+
+bash
+Copy
+Edit
+npx react-native run-ios
+For Android:
+
+bash
+Copy
+Edit
+npx react-native run-android
+Ensure you have an Android emulator running or an iOS simulator available.
+
+🛠 Requirements
+Node.js ≥ 14
+
+React Native CLI
+
+Android Studio or Xcode (for device emulation)
+
+Git
+
+
+
+
