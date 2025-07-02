@@ -3,7 +3,9 @@
 A simple and clean Timer App built using React Native.
 
 
-![ Alt text ](Uploading Screenshot 2025-07-02 at 20.27.05.png)
+<p align="center">
+  <img src="assets/screenshot.png" alt="App Screenshot" width="300"/>
+</p>
 
 
 ## 🚀 Features
