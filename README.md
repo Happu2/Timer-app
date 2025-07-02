@@ -36,20 +36,8 @@ Edit
 npm install
 # or
 yarn install
-3. Run the App
-For iOS:
 
-bash
-Copy
-Edit
-npx react-native run-ios
-For Android:
-
-bash
-Copy
-Edit
-npx react-native run-android
-Ensure you have an Android emulator running or an iOS simulator available.
+npm run dev
 
 🛠 Requirements
 Node.js ≥ 14
