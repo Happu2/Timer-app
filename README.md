@@ -28,9 +28,6 @@ cd Timer-app
 
 Make sure you have npm or yarn installed.
 
-bash
-Copy
-Edit
 npm install
 # or
 yarn install
