@@ -10,14 +10,56 @@ export function useTimers() {
   const [categoryExpansionState, setCategoryExpansionState] = useState<Record<string, boolean>>({});
   const intervalRefs = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
+  // Global timer effect - runs every second for all active timers
+  useEffect(() => {
+    const globalInterval = setInterval(() => {
+      setTimers(prevTimers => {
+        let hasChanges = false;
+        const updatedTimers = prevTimers.map(timer => {
+          if (timer.status === 'running' && timer.remainingTime > 0) {
+            hasChanges = true;
+            const newRemainingTime = Math.max(0, timer.remainingTime - 1);
+            
+            // Check for halfway alert
+            if (timer.halfwayAlert && !timer.halfwayAlertTriggered && 
+                newRemainingTime <= timer.duration / 2 && newRemainingTime > 0) {
+              console.log(`🔔 Halfway alert for timer: ${timer.name}`);
+              return { ...timer, remainingTime: newRemainingTime, halfwayAlertTriggered: true };
+            }
+            
+            // Check if timer completed
+            if (newRemainingTime === 0) {
+              console.log(`✅ Timer completed: ${timer.name}`);
+              
+              // Add to history
+              setTimeout(() => {
+                const historyEntry: TimerHistory = {
+                  id: generateId(),
+                  name: timer.name,
+                  category: timer.category,
+                  duration: timer.duration,
+                  completedAt: new Date(),
+                };
+                setHistory(prev => [historyEntry, ...prev]);
+              }, 0);
+              
+              return { ...timer, remainingTime: 0, status: 'completed' as const };
+            }
+            
+            return { ...timer, remainingTime: newRemainingTime };
+          }
+          return timer;
+        });
+        
+        return hasChanges ? updatedTimers : prevTimers;
+      });
+    }, 1000);
+
+    return () => clearInterval(globalInterval);
+  }, [setTimers, setHistory]);
+
   useEffect(() => {
     updateCategories();
-    
-    // Cleanup intervals on unmount
-    return () => {
-      intervalRefs.current.forEach(interval => clearInterval(interval));
-      intervalRefs.current.clear();
-    };
   }, [timers, categoryExpansionState]);
 
   const updateCategories = useCallback(() => {
@@ -25,7 +67,6 @@ export function useTimers() {
     
     timers.forEach(timer => {
       if (!categoryMap.has(timer.category)) {
-        // New categories are expanded by default, existing ones keep their state
         const isExpanded = categoryExpansionState[timer.category] !== undefined 
           ? categoryExpansionState[timer.category] 
           : true;
@@ -56,7 +97,6 @@ export function useTimers() {
       halfwayAlertTriggered: false,
     };
     
-    // Ensure the category is expanded when adding a new timer
     setCategoryExpansionState(prev => ({
       ...prev,
       [category]: true
@@ -71,101 +111,20 @@ export function useTimers() {
     ));
   }, [setTimers]);
 
-  const addToHistory = useCallback((timer: Timer) => {
-    const historyEntry: TimerHistory = {
-      id: generateId(),
-      name: timer.name,
-      category: timer.category,
-      duration: timer.duration,
-      completedAt: new Date(),
-    };
-    setHistory(prev => [historyEntry, ...prev]);
-  }, [setHistory]);
-
   const startTimer = useCallback((id: string) => {
-    // Clear any existing interval for this timer first
-    const existingInterval = intervalRefs.current.get(id);
-    if (existingInterval) {
-      clearInterval(existingInterval);
-      intervalRefs.current.delete(id);
-    }
-
-    // Get current timer state and start if valid
-    setTimers(prevTimers => {
-      const timer = prevTimers.find(t => t.id === id);
-      if (!timer || timer.status === 'running' || timer.remainingTime <= 0) {
-        return prevTimers;
+    setTimers(prev => prev.map(timer => {
+      if (timer.id === id && timer.status !== 'running' && timer.remainingTime > 0) {
+        return { ...timer, status: 'running' as const };
       }
-
-      // Update timer to running status
-      const updatedTimers = prevTimers.map(t => 
-        t.id === id ? { ...t, status: 'running' as const } : t
-      );
-
-      // Start the countdown interval
-      const interval = setInterval(() => {
-        setTimers(currentTimers => {
-          return currentTimers.map(t => {
-            if (t.id === id && t.status === 'running') {
-              const newRemainingTime = Math.max(0, t.remainingTime - 1);
-              
-              // Check for halfway alert
-              if (t.halfwayAlert && !t.halfwayAlertTriggered && newRemainingTime <= t.duration / 2 && newRemainingTime > 0) {
-                console.log(`🔔 Halfway alert for timer: ${t.name}`);
-                return { ...t, remainingTime: newRemainingTime, halfwayAlertTriggered: true };
-              }
-              
-              // Check if timer completed
-              if (newRemainingTime === 0) {
-                // Clear the interval
-                const currentInterval = intervalRefs.current.get(id);
-                if (currentInterval) {
-                  clearInterval(currentInterval);
-                  intervalRefs.current.delete(id);
-                }
-                
-                // Add to history
-                const historyEntry: TimerHistory = {
-                  id: generateId(),
-                  name: t.name,
-                  category: t.category,
-                  duration: t.duration,
-                  completedAt: new Date(),
-                };
-                setHistory(prev => [historyEntry, ...prev]);
-                
-                console.log(`✅ Timer completed: ${t.name}`);
-                return { ...t, remainingTime: 0, status: 'completed' as const };
-              }
-              
-              return { ...t, remainingTime: newRemainingTime };
-            }
-            return t;
-          });
-        });
-      }, 1000);
-      
-      intervalRefs.current.set(id, interval);
-      return updatedTimers;
-    });
-  }, [setTimers, setHistory]);
+      return timer;
+    }));
+  }, [setTimers]);
 
   const pauseTimer = useCallback((id: string) => {
-    const interval = intervalRefs.current.get(id);
-    if (interval) {
-      clearInterval(interval);
-      intervalRefs.current.delete(id);
-    }
     updateTimer(id, { status: 'paused' });
   }, [updateTimer]);
 
   const resetTimer = useCallback((id: string) => {
-    const interval = intervalRefs.current.get(id);
-    if (interval) {
-      clearInterval(interval);
-      intervalRefs.current.delete(id);
-    }
-    
     setTimers(prev => prev.map(timer => {
       if (timer.id === id) {
         return {
@@ -180,36 +139,41 @@ export function useTimers() {
   }, [setTimers]);
 
   const deleteTimer = useCallback((id: string) => {
-    const interval = intervalRefs.current.get(id);
-    if (interval) {
-      clearInterval(interval);
-      intervalRefs.current.delete(id);
-    }
     setTimers(prev => prev.filter(timer => timer.id !== id));
   }, [setTimers]);
 
   const startAllInCategory = useCallback((category: string) => {
-    const categoryTimers = timers.filter(t => 
-      t.category === category && t.status !== 'completed' && t.remainingTime > 0
-    );
-    categoryTimers.forEach(timer => {
-      if (timer.status !== 'running') {
-        startTimer(timer.id);
+    setTimers(prev => prev.map(timer => {
+      if (timer.category === category && timer.status !== 'completed' && 
+          timer.remainingTime > 0 && timer.status !== 'running') {
+        return { ...timer, status: 'running' as const };
       }
-    });
-  }, [timers, startTimer]);
+      return timer;
+    }));
+  }, [setTimers]);
 
   const pauseAllInCategory = useCallback((category: string) => {
-    const categoryTimers = timers.filter(t => 
-      t.category === category && t.status === 'running'
-    );
-    categoryTimers.forEach(timer => pauseTimer(timer.id));
-  }, [timers, pauseTimer]);
+    setTimers(prev => prev.map(timer => {
+      if (timer.category === category && timer.status === 'running') {
+        return { ...timer, status: 'paused' as const };
+      }
+      return timer;
+    }));
+  }, [setTimers]);
 
   const resetAllInCategory = useCallback((category: string) => {
-    const categoryTimers = timers.filter(t => t.category === category);
-    categoryTimers.forEach(timer => resetTimer(timer.id));
-  }, [timers, resetTimer]);
+    setTimers(prev => prev.map(timer => {
+      if (timer.category === category) {
+        return {
+          ...timer,
+          remainingTime: timer.duration,
+          status: 'idle' as const,
+          halfwayAlertTriggered: false,
+        };
+      }
+      return timer;
+    }));
+  }, [setTimers]);
 
   const toggleCategoryExpansion = useCallback((categoryName: string) => {
     setCategoryExpansionState(prev => ({
