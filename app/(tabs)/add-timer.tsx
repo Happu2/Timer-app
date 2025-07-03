@@ -44,6 +44,11 @@ export default function AddTimerScreen() {
       return;
     }
 
+    if (!duration.trim()) {
+      Alert.alert('Error', 'Please enter a duration');
+      return;
+    }
+
     const durationSeconds = parseDuration(duration);
     if (durationSeconds <= 0) {
       Alert.alert('Error', 'Please enter a valid duration (e.g., "5:00" for 5 minutes)');
@@ -52,25 +57,30 @@ export default function AddTimerScreen() {
 
     const timerCategory = customCategory.trim() || category || 'Other';
 
-    addTimer(name.trim(), durationSeconds, timerCategory, halfwayAlert);
-    
-    Alert.alert(
-      'Timer Created',
-      `"${name}" has been added successfully!`,
-      [
-        {
-          text: 'Add Another',
-          onPress: resetForm,
-        },
-        {
-          text: 'View Timers',
-          onPress: () => {
-            resetForm();
-            router.push('/');
+    try {
+      addTimer(name.trim(), durationSeconds, timerCategory, halfwayAlert);
+      
+      Alert.alert(
+        'Timer Created',
+        `"${name}" has been added successfully!`,
+        [
+          {
+            text: 'Add Another',
+            onPress: resetForm,
           },
-        },
-      ]
-    );
+          {
+            text: 'View Timers',
+            onPress: () => {
+              resetForm();
+              router.push('/');
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create timer. Please try again.');
+      console.error('Error creating timer:', error);
+    }
   };
 
   const styles = StyleSheet.create({

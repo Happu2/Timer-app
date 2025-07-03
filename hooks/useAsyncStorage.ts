@@ -7,16 +7,18 @@ export function useAsyncStorage<T>(key: string, initialValue: T) {
 
   useEffect(() => {
     loadStoredValue();
-  }, []);
+  }, [key]);
 
   const loadStoredValue = async () => {
     try {
       const item = await AsyncStorage.getItem(key);
-      if (item) {
-        setStoredValue(JSON.parse(item));
+      if (item !== null) {
+        const parsedValue = JSON.parse(item);
+        setStoredValue(parsedValue);
       }
     } catch (error) {
       console.error(`Error loading ${key} from storage:`, error);
+      setStoredValue(initialValue);
     } finally {
       setIsLoading(false);
     }
@@ -27,11 +29,9 @@ export function useAsyncStorage<T>(key: string, initialValue: T) {
       // Handle function updates
       const newValue = typeof value === 'function' ? (value as (prev: T) => T)(storedValue) : value;
       
-      // Ensure we never store undefined values
+      // Validate the new value
       if (newValue === undefined || newValue === null) {
-        console.warn(`Attempted to store undefined/null value for key: ${key}. Using initial value instead.`);
-        setStoredValue(initialValue);
-        await AsyncStorage.setItem(key, JSON.stringify(initialValue));
+        console.warn(`Attempted to store undefined/null value for key: ${key}. Skipping update.`);
         return;
       }
       
@@ -39,8 +39,6 @@ export function useAsyncStorage<T>(key: string, initialValue: T) {
       await AsyncStorage.setItem(key, JSON.stringify(newValue));
     } catch (error) {
       console.error(`Error saving ${key} to storage:`, error);
-      // Fallback to initial value on error
-      setStoredValue(initialValue);
     }
   };
 

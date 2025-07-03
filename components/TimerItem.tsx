@@ -20,6 +20,7 @@ export function TimerItem({ timer, onStart, onPause, onReset, onDelete }: TimerI
   const isRunning = timer.status === 'running';
   const isCompleted = timer.status === 'completed';
   const isPaused = timer.status === 'paused';
+  const canStart = timer.remainingTime > 0 && !isRunning;
 
   const handleDelete = () => {
     Alert.alert(
@@ -30,6 +31,14 @@ export function TimerItem({ timer, onStart, onPause, onReset, onDelete }: TimerI
         { text: 'Delete', style: 'destructive', onPress: onDelete },
       ]
     );
+  };
+
+  const handleStartPause = () => {
+    if (isRunning) {
+      onPause();
+    } else if (canStart) {
+      onStart();
+    }
   };
 
   const styles = StyleSheet.create({
@@ -85,7 +94,6 @@ export function TimerItem({ timer, onStart, onPause, onReset, onDelete }: TimerI
     progressBar: {
       height: '100%',
       borderRadius: 3,
-      transition: 'width 0.3s ease',
     },
     timeContainer: {
       flexDirection: 'row',
@@ -122,6 +130,9 @@ export function TimerItem({ timer, onStart, onPause, onReset, onDelete }: TimerI
       flex: 1,
       marginRight: 8,
       justifyContent: 'center',
+    },
+    controlButtonDisabled: {
+      opacity: 0.5,
     },
     controlButtonText: {
       marginLeft: 8,
@@ -254,10 +265,11 @@ export function TimerItem({ timer, onStart, onPause, onReset, onDelete }: TimerI
             <TouchableOpacity
               style={[
                 styles.controlButton,
-                { backgroundColor: isRunning ? colors.warning + '20' : colors.success + '20' }
+                { backgroundColor: isRunning ? colors.warning + '20' : colors.success + '20' },
+                !canStart && !isRunning && styles.controlButtonDisabled
               ]}
-              onPress={isRunning ? onPause : onStart}
-              disabled={timer.remainingTime <= 0}
+              onPress={handleStartPause}
+              disabled={!canStart && !isRunning}
             >
               {isRunning ? (
                 <Pause size={18} color={colors.warning} />

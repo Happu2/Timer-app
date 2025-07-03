@@ -1,4 +1,6 @@
 export const formatTime = (seconds: number): string => {
+  if (seconds < 0) seconds = 0;
+  
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainingSeconds = seconds % 60;
@@ -10,18 +12,26 @@ export const formatTime = (seconds: number): string => {
 };
 
 export const parseDuration = (input: string): number => {
+  if (!input || typeof input !== 'string') return 0;
+  
+  // Remove any whitespace
+  input = input.trim();
+  
   // Parse formats like "1:30", "90", "1:30:45"
-  const parts = input.split(':').map(part => parseInt(part, 10));
+  const parts = input.split(':').map(part => {
+    const num = parseInt(part, 10);
+    return isNaN(num) ? 0 : num;
+  });
   
   if (parts.length === 1) {
-    // Just seconds
-    return parts[0] || 0;
+    // Just minutes (convert to seconds)
+    return Math.max(0, parts[0] * 60);
   } else if (parts.length === 2) {
     // Minutes:Seconds
-    return (parts[0] || 0) * 60 + (parts[1] || 0);
+    return Math.max(0, (parts[0] * 60) + parts[1]);
   } else if (parts.length === 3) {
     // Hours:Minutes:Seconds
-    return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+    return Math.max(0, (parts[0] * 3600) + (parts[1] * 60) + parts[2]);
   }
   
   return 0;
@@ -29,11 +39,12 @@ export const parseDuration = (input: string): number => {
 
 export const getProgressPercentage = (remaining: number, total: number): number => {
   if (total === 0) return 0;
+  if (remaining < 0) remaining = 0;
   return Math.max(0, Math.min(100, ((total - remaining) / total) * 100));
 };
 
 export const generateId = (): string => {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 };
 
 export const getCategoryColor = (category: string): string => {

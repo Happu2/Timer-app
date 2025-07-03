@@ -9,12 +9,6 @@ export function useTimers() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryExpansionState, setCategoryExpansionState] = useState<Record<string, boolean>>({});
   const intervalRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
-  const timersRef = useRef<Timer[]>([]);
-
-  // Keep timersRef in sync with timers state
-  useEffect(() => {
-    timersRef.current = timers;
-  }, [timers]);
 
   useEffect(() => {
     updateCategories();
@@ -89,56 +83,71 @@ export function useTimers() {
   }, [setHistory]);
 
   const startTimer = useCallback((id: string) => {
-    const timer = timersRef.current.find(t => t.id === id);
-    if (!timer || timer.status === 'running' || timer.remainingTime <= 0) return;
-
-    // Clear any existing interval for this timer
+    // Clear any existing interval for this timer first
     const existingInterval = intervalRefs.current.get(id);
     if (existingInterval) {
       clearInterval(existingInterval);
+      intervalRefs.current.delete(id);
     }
 
-    updateTimer(id, { status: 'running' });
-    
-    const interval = setInterval(() => {
-      setTimers(prevTimers => {
-        return prevTimers.map(t => {
-          if (t.id === id && t.status === 'running') {
-            const newRemainingTime = Math.max(0, t.remainingTime - 1);
-            
-            // Check for halfway alert
-            if (t.halfwayAlert && !t.halfwayAlertTriggered && newRemainingTime <= t.duration / 2 && newRemainingTime > 0) {
-              // Trigger halfway alert - in a real app, this would show a notification
-              console.log(`Halfway alert for timer: ${t.name}`);
-              return { ...t, remainingTime: newRemainingTime, halfwayAlertTriggered: true };
-            }
-            
-            // Check if timer completed
-            if (newRemainingTime === 0) {
-              // Clear the interval
-              const currentInterval = intervalRefs.current.get(id);
-              if (currentInterval) {
-                clearInterval(currentInterval);
-                intervalRefs.current.delete(id);
+    // Get current timer state
+    setTimers(prevTimers => {
+      const timer = prevTimers.find(t => t.id === id);
+      if (!timer || timer.status === 'running' || timer.remainingTime <= 0) {
+        return prevTimers;
+      }
+
+      // Update timer to running status
+      const updatedTimers = prevTimers.map(t => 
+        t.id === id ? { ...t, status: 'running' as const } : t
+      );
+
+      // Start the interval
+      const interval = setInterval(() => {
+        setTimers(currentTimers => {
+          return currentTimers.map(t => {
+            if (t.id === id && t.status === 'running') {
+              const newRemainingTime = Math.max(0, t.remainingTime - 1);
+              
+              // Check for halfway alert
+              if (t.halfwayAlert && !t.halfwayAlertTriggered && newRemainingTime <= t.duration / 2 && newRemainingTime > 0) {
+                console.log(`Halfway alert for timer: ${t.name}`);
+                return { ...t, remainingTime: newRemainingTime, halfwayAlertTriggered: true };
               }
               
-              // Add to history
-              setTimeout(() => {
-                addToHistory(t);
-              }, 0);
+              // Check if timer completed
+              if (newRemainingTime === 0) {
+                // Clear the interval
+                const currentInterval = intervalRefs.current.get(id);
+                if (currentInterval) {
+                  clearInterval(currentInterval);
+                  intervalRefs.current.delete(id);
+                }
+                
+                // Add to history
+                const historyEntry: TimerHistory = {
+                  id: generateId(),
+                  name: t.name,
+                  category: t.category,
+                  duration: t.duration,
+                  completedAt: new Date(),
+                };
+                setHistory(prev => [historyEntry, ...prev]);
+                
+                return { ...t, remainingTime: 0, status: 'completed' as const };
+              }
               
-              return { ...t, remainingTime: 0, status: 'completed' as const };
+              return { ...t, remainingTime: newRemainingTime };
             }
-            
-            return { ...t, remainingTime: newRemainingTime };
-          }
-          return t;
+            return t;
+          });
         });
-      });
-    }, 1000);
-    
-    intervalRefs.current.set(id, interval);
-  }, [updateTimer, addToHistory, setTimers]);
+      }, 1000);
+      
+      intervalRefs.current.set(id, interval);
+      return updatedTimers;
+    });
+  }, [setTimers, setHistory]);
 
   const pauseTimer = useCallback((id: string) => {
     const interval = intervalRefs.current.get(id);
@@ -150,21 +159,24 @@ export function useTimers() {
   }, [updateTimer]);
 
   const resetTimer = useCallback((id: string) => {
-    const timer = timersRef.current.find(t => t.id === id);
-    if (!timer) return;
-
     const interval = intervalRefs.current.get(id);
     if (interval) {
       clearInterval(interval);
       intervalRefs.current.delete(id);
     }
     
-    updateTimer(id, { 
-      remainingTime: timer.duration, 
-      status: 'idle',
-      halfwayAlertTriggered: false,
-    });
-  }, [updateTimer]);
+    setTimers(prev => prev.map(timer => {
+      if (timer.id === id) {
+        return {
+          ...timer,
+          remainingTime: timer.duration,
+          status: 'idle' as const,
+          halfwayAlertTriggered: false,
+        };
+      }
+      return timer;
+    }));
+  }, [setTimers]);
 
   const deleteTimer = useCallback((id: string) => {
     const interval = intervalRefs.current.get(id);
@@ -176,22 +188,35 @@ export function useTimers() {
   }, [setTimers]);
 
   const startAllInCategory = useCallback((category: string) => {
-    const categoryTimers = timersRef.current.filter(t => 
-      t.category === category && t.status !== 'completed' && t.remainingTime > 0
-    );
-    categoryTimers.forEach(timer => startTimer(timer.id));
+    setTimers(prevTimers => {
+      const categoryTimers = prevTimers.filter(t => 
+        t.category === category && t.status !== 'completed' && t.remainingTime > 0
+      );
+      categoryTimers.forEach(timer => {
+        if (timer.status !== 'running') {
+          startTimer(timer.id);
+        }
+      });
+      return prevTimers;
+    });
   }, [startTimer]);
 
   const pauseAllInCategory = useCallback((category: string) => {
-    const categoryTimers = timersRef.current.filter(t => 
-      t.category === category && t.status === 'running'
-    );
-    categoryTimers.forEach(timer => pauseTimer(timer.id));
+    setTimers(prevTimers => {
+      const categoryTimers = prevTimers.filter(t => 
+        t.category === category && t.status === 'running'
+      );
+      categoryTimers.forEach(timer => pauseTimer(timer.id));
+      return prevTimers;
+    });
   }, [pauseTimer]);
 
   const resetAllInCategory = useCallback((category: string) => {
-    const categoryTimers = timersRef.current.filter(t => t.category === category);
-    categoryTimers.forEach(timer => resetTimer(timer.id));
+    setTimers(prevTimers => {
+      const categoryTimers = prevTimers.filter(t => t.category === category);
+      categoryTimers.forEach(timer => resetTimer(timer.id));
+      return prevTimers;
+    });
   }, [resetTimer]);
 
   const toggleCategoryExpansion = useCallback((categoryName: string) => {
@@ -203,12 +228,12 @@ export function useTimers() {
 
   const exportData = useCallback(() => {
     const exportData = {
-      timers: timersRef.current,
+      timers,
       history,
       exportedAt: new Date().toISOString(),
     };
     return JSON.stringify(exportData, null, 2);
-  }, [history]);
+  }, [timers, history]);
 
   return {
     timers,
