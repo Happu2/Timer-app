@@ -14,6 +14,7 @@ export default function HomeScreen() {
   const {
     categories,
     timers,
+    isLoading,
     startTimer,
     pauseTimer,
     resetTimer,
@@ -69,6 +70,14 @@ export default function HomeScreen() {
 
   const handleAddTimer = () => {
     router.push('/add-timer');
+  };
+
+  const handleDeleteTimer = async (id: string) => {
+    try {
+      await deleteTimer(id);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete timer. Please try again.');
+    }
   };
 
   const styles = StyleSheet.create({
@@ -170,11 +179,34 @@ export default function HomeScreen() {
       color: colors.textSecondary,
       marginTop: 4,
     },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      fontSize: 16,
+      color: colors.textSecondary,
+      marginTop: 12,
+    },
   });
 
   const totalTimers = timers.length;
   const runningTimers = timers.filter(t => t.status === 'running').length;
   const completedTimers = timers.filter(t => t.status === 'completed').length;
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>My Timers</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading timers...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (categories.length === 0 && totalTimers === 0) {
     return (
@@ -251,7 +283,7 @@ export default function HomeScreen() {
             onStartTimer={startTimer}
             onPauseTimer={pauseTimer}
             onResetTimer={resetTimer}
-            onDeleteTimer={deleteTimer}
+            onDeleteTimer={handleDeleteTimer}
             onStartAll={() => startAllInCategory(category.name)}
             onPauseAll={() => pauseAllInCategory(category.name)}
             onResetAll={() => resetAllInCategory(category.name)}

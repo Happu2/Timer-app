@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export function useAsyncStorage<T>(key: string, initialValue: T) {
   const [storedValue, setStoredValue] = useState<T>(initialValue);
@@ -24,7 +24,7 @@ export function useAsyncStorage<T>(key: string, initialValue: T) {
     }
   };
 
-  const setValue = async (value: T | ((prev: T) => T)) => {
+  const setValue = useCallback(async (value: T | ((prev: T) => T)) => {
     try {
       // Handle function updates
       const newValue = typeof value === 'function' ? (value as (prev: T) => T)(storedValue) : value;
@@ -35,12 +35,18 @@ export function useAsyncStorage<T>(key: string, initialValue: T) {
         return;
       }
       
+      // Update state immediately for better UX
       setStoredValue(newValue);
+      
+      // Then persist to storage
       await AsyncStorage.setItem(key, JSON.stringify(newValue));
+      console.log(`Successfully saved ${key} to storage`);
     } catch (error) {
       console.error(`Error saving ${key} to storage:`, error);
+      // Revert to previous value on error
+      loadStoredValue();
     }
-  };
+  }, [key, storedValue]);
 
   return [storedValue, setValue, isLoading] as const;
 }

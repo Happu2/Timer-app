@@ -4,14 +4,15 @@ import { useAsyncStorage } from '@/hooks/useAsyncStorage';
 import { generateId } from '@/utils/timerUtils';
 
 export function useTimers() {
-  const [timers, setTimers] = useAsyncStorage<Timer[]>('timers', []);
-  const [history, setHistory] = useAsyncStorage<TimerHistory[]>('timer_history', []);
+  const [timers, setTimers, timersLoading] = useAsyncStorage<Timer[]>('timers', []);
+  const [history, setHistory, historyLoading] = useAsyncStorage<TimerHistory[]>('timer_history', []);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryExpansionState, setCategoryExpansionState] = useState<Record<string, boolean>>({});
-  const intervalRefs = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   // Global timer effect - runs every second for all active timers
   useEffect(() => {
+    if (timersLoading) return; // Don't start timer until data is loaded
+
     const globalInterval = setInterval(() => {
       setTimers(prevTimers => {
         let hasChanges = false;
@@ -56,11 +57,13 @@ export function useTimers() {
     }, 1000);
 
     return () => clearInterval(globalInterval);
-  }, [setTimers, setHistory]);
+  }, [setTimers, setHistory, timersLoading]);
 
   useEffect(() => {
-    updateCategories();
-  }, [timers, categoryExpansionState]);
+    if (!timersLoading) {
+      updateCategories();
+    }
+  }, [timers, categoryExpansionState, timersLoading]);
 
   const updateCategories = useCallback(() => {
     const categoryMap = new Map<string, Category>();
@@ -84,49 +87,66 @@ export function useTimers() {
     setCategories(newCategories);
   }, [timers, categoryExpansionState]);
 
-  const addTimer = useCallback((name: string, duration: number, category: string, halfwayAlert = false) => {
-    const newTimer: Timer = {
-      id: generateId(),
-      name,
-      duration,
-      category,
-      remainingTime: duration,
-      status: 'idle',
-      createdAt: new Date(),
-      halfwayAlert,
-      halfwayAlertTriggered: false,
-    };
-    
-    setCategoryExpansionState(prev => ({
-      ...prev,
-      [category]: true
-    }));
-    
-    setTimers(prev => [...prev, newTimer]);
+  const addTimer = useCallback(async (name: string, duration: number, category: string, halfwayAlert = false) => {
+    try {
+      const newTimer: Timer = {
+        id: generateId(),
+        name,
+        duration,
+        category,
+        remainingTime: duration,
+        status: 'idle',
+        createdAt: new Date(),
+        halfwayAlert,
+        halfwayAlertTriggered: false,
+      };
+      
+      console.log('Adding new timer:', newTimer);
+      
+      // Ensure the category is expanded when adding a new timer
+      setCategoryExpansionState(prev => ({
+        ...prev,
+        [category]: true
+      }));
+      
+      // Add timer to the list
+      await setTimers(prev => {
+        const newTimers = [...prev, newTimer];
+        console.log('Updated timers list:', newTimers);
+        return newTimers;
+      });
+      
+      console.log('Timer added successfully');
+    } catch (error) {
+      console.error('Error adding timer:', error);
+      throw error;
+    }
   }, [setTimers]);
 
-  const updateTimer = useCallback((id: string, updates: Partial<Timer>) => {
-    setTimers(prev => prev.map(timer => 
+  const updateTimer = useCallback(async (id: string, updates: Partial<Timer>) => {
+    await setTimers(prev => prev.map(timer => 
       timer.id === id ? { ...timer, ...updates } : timer
     ));
   }, [setTimers]);
 
-  const startTimer = useCallback((id: string) => {
-    setTimers(prev => prev.map(timer => {
+  const startTimer = useCallback(async (id: string) => {
+    await setTimers(prev => prev.map(timer => {
       if (timer.id === id && timer.status !== 'running' && timer.remainingTime > 0) {
+        console.log(`Starting timer: ${timer.name}`);
         return { ...timer, status: 'running' as const };
       }
       return timer;
     }));
   }, [setTimers]);
 
-  const pauseTimer = useCallback((id: string) => {
-    updateTimer(id, { status: 'paused' });
+  const pauseTimer = useCallback(async (id: string) => {
+    await updateTimer(id, { status: 'paused' });
   }, [updateTimer]);
 
-  const resetTimer = useCallback((id: string) => {
-    setTimers(prev => prev.map(timer => {
+  const resetTimer = useCallback(async (id: string) => {
+    await setTimers(prev => prev.map(timer => {
       if (timer.id === id) {
+        console.log(`Resetting timer: ${timer.name}`);
         return {
           ...timer,
           remainingTime: timer.duration,
@@ -138,12 +158,23 @@ export function useTimers() {
     }));
   }, [setTimers]);
 
-  const deleteTimer = useCallback((id: string) => {
-    setTimers(prev => prev.filter(timer => timer.id !== id));
+  const deleteTimer = useCallback(async (id: string) => {
+    try {
+      console.log('Deleting timer with id:', id);
+      await setTimers(prev => {
+        const filteredTimers = prev.filter(timer => timer.id !== id);
+        console.log('Timers after deletion:', filteredTimers);
+        return filteredTimers;
+      });
+      console.log('Timer deleted successfully');
+    } catch (error) {
+      console.error('Error deleting timer:', error);
+      throw error;
+    }
   }, [setTimers]);
 
-  const startAllInCategory = useCallback((category: string) => {
-    setTimers(prev => prev.map(timer => {
+  const startAllInCategory = useCallback(async (category: string) => {
+    await setTimers(prev => prev.map(timer => {
       if (timer.category === category && timer.status !== 'completed' && 
           timer.remainingTime > 0 && timer.status !== 'running') {
         return { ...timer, status: 'running' as const };
@@ -152,8 +183,8 @@ export function useTimers() {
     }));
   }, [setTimers]);
 
-  const pauseAllInCategory = useCallback((category: string) => {
-    setTimers(prev => prev.map(timer => {
+  const pauseAllInCategory = useCallback(async (category: string) => {
+    await setTimers(prev => prev.map(timer => {
       if (timer.category === category && timer.status === 'running') {
         return { ...timer, status: 'paused' as const };
       }
@@ -161,8 +192,8 @@ export function useTimers() {
     }));
   }, [setTimers]);
 
-  const resetAllInCategory = useCallback((category: string) => {
-    setTimers(prev => prev.map(timer => {
+  const resetAllInCategory = useCallback(async (category: string) => {
+    await setTimers(prev => prev.map(timer => {
       if (timer.category === category) {
         return {
           ...timer,
@@ -195,6 +226,7 @@ export function useTimers() {
     timers,
     history,
     categories,
+    isLoading: timersLoading || historyLoading,
     addTimer,
     updateTimer,
     startTimer,

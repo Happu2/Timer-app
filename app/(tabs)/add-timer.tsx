@@ -29,6 +29,7 @@ export default function AddTimerScreen() {
   const [category, setCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [halfwayAlert, setHalfwayAlert] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const resetForm = () => {
     setName('');
@@ -38,27 +39,40 @@ export default function AddTimerScreen() {
     setHalfwayAlert(false);
   };
 
-  const handleSubmit = () => {
-    if (!name.trim()) {
-      Alert.alert('Error', 'Please enter a timer name');
-      return;
-    }
-
-    if (!duration.trim()) {
-      Alert.alert('Error', 'Please enter a duration');
-      return;
-    }
-
-    const durationSeconds = parseDuration(duration);
-    if (durationSeconds <= 0) {
-      Alert.alert('Error', 'Please enter a valid duration (e.g., "5:00" for 5 minutes)');
-      return;
-    }
-
-    const timerCategory = customCategory.trim() || category || 'Other';
-
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+    
+    setIsSubmitting(true);
+    
     try {
-      addTimer(name.trim(), durationSeconds, timerCategory, halfwayAlert);
+      // Validate timer name
+      if (!name.trim()) {
+        Alert.alert('Error', 'Please enter a timer name');
+        return;
+      }
+
+      // Validate duration
+      if (!duration.trim()) {
+        Alert.alert('Error', 'Please enter a duration');
+        return;
+      }
+
+      const durationSeconds = parseDuration(duration);
+      if (durationSeconds <= 0) {
+        Alert.alert('Error', 'Please enter a valid duration (e.g., "5:00" for 5 minutes)');
+        return;
+      }
+
+      const timerCategory = customCategory.trim() || category || 'Other';
+
+      console.log('Creating timer with:', {
+        name: name.trim(),
+        duration: durationSeconds,
+        category: timerCategory,
+        halfwayAlert
+      });
+
+      await addTimer(name.trim(), durationSeconds, timerCategory, halfwayAlert);
       
       Alert.alert(
         'Timer Created',
@@ -78,8 +92,10 @@ export default function AddTimerScreen() {
         ]
       );
     } catch (error) {
-      Alert.alert('Error', 'Failed to create timer. Please try again.');
       console.error('Error creating timer:', error);
+      Alert.alert('Error', 'Failed to create timer. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -193,7 +209,7 @@ export default function AddTimerScreen() {
       backgroundColor: colors.background,
     },
     submitButton: {
-      backgroundColor: colors.primary,
+      backgroundColor: isSubmitting ? colors.border : colors.primary,
       borderRadius: 12,
       padding: 16,
       alignItems: 'center',
@@ -224,6 +240,7 @@ export default function AddTimerScreen() {
             onChangeText={setName}
             placeholder="e.g., Morning Workout"
             placeholderTextColor={colors.textSecondary}
+            editable={!isSubmitting}
           />
         </View>
 
@@ -238,6 +255,7 @@ export default function AddTimerScreen() {
             onChangeText={setDuration}
             placeholder="e.g., 25:00 or 1:30:00"
             placeholderTextColor={colors.textSecondary}
+            editable={!isSubmitting}
           />
           <Text style={styles.durationHelp}>
             Format: MM:SS or HH:MM:SS (e.g., "5:00" for 5 minutes)
@@ -252,6 +270,7 @@ export default function AddTimerScreen() {
                   duration === preset.value && styles.presetButtonSelected
                 ]}
                 onPress={() => setDuration(preset.value)}
+                disabled={isSubmitting}
               >
                 <Text style={[
                   styles.presetButtonText,
@@ -281,6 +300,7 @@ export default function AddTimerScreen() {
                   setCategory(cat);
                   setCustomCategory('');
                 }}
+                disabled={isSubmitting}
               >
                 <Text style={[
                   styles.presetButtonText,
@@ -301,6 +321,7 @@ export default function AddTimerScreen() {
             }}
             placeholder="Or enter custom category"
             placeholderTextColor={colors.textSecondary}
+            editable={!isSubmitting}
           />
         </View>
 
@@ -312,6 +333,7 @@ export default function AddTimerScreen() {
           <TouchableOpacity
             style={styles.optionRow}
             onPress={() => setHalfwayAlert(!halfwayAlert)}
+            disabled={isSubmitting}
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.optionText}>Halfway Alert</Text>
@@ -331,8 +353,14 @@ export default function AddTimerScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Create Timer</Text>
+        <TouchableOpacity 
+          style={styles.submitButton} 
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.submitButtonText}>
+            {isSubmitting ? 'Creating Timer...' : 'Create Timer'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

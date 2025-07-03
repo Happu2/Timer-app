@@ -27,7 +27,14 @@ export function TimerItem({ timer, onStart, onPause, onReset, onDelete }: TimerI
       `Are you sure you want to delete "${timer.name}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: onDelete },
+        { 
+          text: 'Delete', 
+          style: 'destructive', 
+          onPress: () => {
+            console.log('Deleting timer:', timer.id, timer.name);
+            onDelete();
+          }
+        },
       ]
     );
   };
