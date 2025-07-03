@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Timer, TimerHistory, Category } from '@/types/timer';
-import { useAsyncStorage } from './useAsyncStorage';
+import { useAsyncStorage } from '@/hooks/useAsyncStorage';
 import { generateId } from '@/utils/timerUtils';
 
 export function useTimers() {
