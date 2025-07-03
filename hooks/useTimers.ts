@@ -8,7 +8,7 @@ export function useTimers() {
   const [history, setHistory] = useAsyncStorage<TimerHistory[]>('timer_history', []);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryExpansionState, setCategoryExpansionState] = useState<Record<string, boolean>>({});
-  const intervalRefs = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const intervalRefs = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
   useEffect(() => {
     updateCategories();
@@ -90,7 +90,7 @@ export function useTimers() {
       intervalRefs.current.delete(id);
     }
 
-    // Get current timer state
+    // Get current timer state and start if valid
     setTimers(prevTimers => {
       const timer = prevTimers.find(t => t.id === id);
       if (!timer || timer.status === 'running' || timer.remainingTime <= 0) {
@@ -102,7 +102,7 @@ export function useTimers() {
         t.id === id ? { ...t, status: 'running' as const } : t
       );
 
-      // Start the interval
+      // Start the countdown interval
       const interval = setInterval(() => {
         setTimers(currentTimers => {
           return currentTimers.map(t => {
@@ -111,7 +111,7 @@ export function useTimers() {
               
               // Check for halfway alert
               if (t.halfwayAlert && !t.halfwayAlertTriggered && newRemainingTime <= t.duration / 2 && newRemainingTime > 0) {
-                console.log(`Halfway alert for timer: ${t.name}`);
+                console.log(`🔔 Halfway alert for timer: ${t.name}`);
                 return { ...t, remainingTime: newRemainingTime, halfwayAlertTriggered: true };
               }
               
@@ -134,6 +134,7 @@ export function useTimers() {
                 };
                 setHistory(prev => [historyEntry, ...prev]);
                 
+                console.log(`✅ Timer completed: ${t.name}`);
                 return { ...t, remainingTime: 0, status: 'completed' as const };
               }
               
@@ -188,36 +189,27 @@ export function useTimers() {
   }, [setTimers]);
 
   const startAllInCategory = useCallback((category: string) => {
-    setTimers(prevTimers => {
-      const categoryTimers = prevTimers.filter(t => 
-        t.category === category && t.status !== 'completed' && t.remainingTime > 0
-      );
-      categoryTimers.forEach(timer => {
-        if (timer.status !== 'running') {
-          startTimer(timer.id);
-        }
-      });
-      return prevTimers;
+    const categoryTimers = timers.filter(t => 
+      t.category === category && t.status !== 'completed' && t.remainingTime > 0
+    );
+    categoryTimers.forEach(timer => {
+      if (timer.status !== 'running') {
+        startTimer(timer.id);
+      }
     });
-  }, [startTimer]);
+  }, [timers, startTimer]);
 
   const pauseAllInCategory = useCallback((category: string) => {
-    setTimers(prevTimers => {
-      const categoryTimers = prevTimers.filter(t => 
-        t.category === category && t.status === 'running'
-      );
-      categoryTimers.forEach(timer => pauseTimer(timer.id));
-      return prevTimers;
-    });
-  }, [pauseTimer]);
+    const categoryTimers = timers.filter(t => 
+      t.category === category && t.status === 'running'
+    );
+    categoryTimers.forEach(timer => pauseTimer(timer.id));
+  }, [timers, pauseTimer]);
 
   const resetAllInCategory = useCallback((category: string) => {
-    setTimers(prevTimers => {
-      const categoryTimers = prevTimers.filter(t => t.category === category);
-      categoryTimers.forEach(timer => resetTimer(timer.id));
-      return prevTimers;
-    });
-  }, [resetTimer]);
+    const categoryTimers = timers.filter(t => t.category === category);
+    categoryTimers.forEach(timer => resetTimer(timer.id));
+  }, [timers, resetTimer]);
 
   const toggleCategoryExpansion = useCallback((categoryName: string) => {
     setCategoryExpansionState(prev => ({
