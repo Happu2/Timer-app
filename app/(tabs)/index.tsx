@@ -72,12 +72,9 @@ export default function HomeScreen() {
     router.push('/add-timer');
   };
 
-  const handleDeleteTimer = async (id: string) => {
-    try {
-      await deleteTimer(id);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to delete timer. Please try again.');
-    }
+  // Simple delete function - like your deleteItem example
+  const handleDeleteTimer = (id: string) => {
+    deleteTimer(id);
   };
 
   const styles = StyleSheet.create({

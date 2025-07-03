@@ -87,11 +87,12 @@ export function useTimers() {
     setCategories(newCategories);
   }, [timers, categoryExpansionState]);
 
-  const addTimer = useCallback(async (name: string, duration: number, category: string, halfwayAlert = false) => {
-    try {
+  // Simple add timer function - like your addItem example
+  const addTimer = (name: string, duration: number, category: string, halfwayAlert = false) => {
+    if (name.trim()) {
       const newTimer: Timer = {
         id: generateId(),
-        name,
+        name: name.trim(),
         duration,
         category,
         remainingTime: duration,
@@ -109,19 +110,16 @@ export function useTimers() {
         [category]: true
       }));
       
-      // Add timer to the list
-      await setTimers(prev => {
-        const newTimers = [...prev, newTimer];
-        console.log('Updated timers list:', newTimers);
-        return newTimers;
-      });
-      
-      console.log('Timer added successfully');
-    } catch (error) {
-      console.error('Error adding timer:', error);
-      throw error;
+      // Add timer to the list - simple array spread like your example
+      setTimers(prevTimers => [...prevTimers, newTimer]);
     }
-  }, [setTimers]);
+  };
+
+  // Simple delete timer function - like your deleteItem example
+  const deleteTimer = (id: string) => {
+    console.log('Deleting timer with id:', id);
+    setTimers(prevTimers => prevTimers.filter(timer => timer.id !== id));
+  };
 
   const updateTimer = useCallback(async (id: string, updates: Partial<Timer>) => {
     await setTimers(prev => prev.map(timer => 
@@ -156,21 +154,6 @@ export function useTimers() {
       }
       return timer;
     }));
-  }, [setTimers]);
-
-  const deleteTimer = useCallback(async (id: string) => {
-    try {
-      console.log('Deleting timer with id:', id);
-      await setTimers(prev => {
-        const filteredTimers = prev.filter(timer => timer.id !== id);
-        console.log('Timers after deletion:', filteredTimers);
-        return filteredTimers;
-      });
-      console.log('Timer deleted successfully');
-    } catch (error) {
-      console.error('Error deleting timer:', error);
-      throw error;
-    }
   }, [setTimers]);
 
   const startAllInCategory = useCallback(async (category: string) => {

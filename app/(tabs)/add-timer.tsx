@@ -29,7 +29,6 @@ export default function AddTimerScreen() {
   const [category, setCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [halfwayAlert, setHalfwayAlert] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const resetForm = () => {
     setName('');
@@ -39,64 +38,48 @@ export default function AddTimerScreen() {
     setHalfwayAlert(false);
   };
 
-  const handleSubmit = async () => {
-    if (isSubmitting) return;
-    
-    setIsSubmitting(true);
-    
-    try {
-      // Validate timer name
-      if (!name.trim()) {
-        Alert.alert('Error', 'Please enter a timer name');
-        return;
-      }
-
-      // Validate duration
-      if (!duration.trim()) {
-        Alert.alert('Error', 'Please enter a duration');
-        return;
-      }
-
-      const durationSeconds = parseDuration(duration);
-      if (durationSeconds <= 0) {
-        Alert.alert('Error', 'Please enter a valid duration (e.g., "5:00" for 5 minutes)');
-        return;
-      }
-
-      const timerCategory = customCategory.trim() || category || 'Other';
-
-      console.log('Creating timer with:', {
-        name: name.trim(),
-        duration: durationSeconds,
-        category: timerCategory,
-        halfwayAlert
-      });
-
-      await addTimer(name.trim(), durationSeconds, timerCategory, halfwayAlert);
-      
-      Alert.alert(
-        'Timer Created',
-        `"${name}" has been added successfully!`,
-        [
-          {
-            text: 'Add Another',
-            onPress: resetForm,
-          },
-          {
-            text: 'View Timers',
-            onPress: () => {
-              resetForm();
-              router.push('/');
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error('Error creating timer:', error);
-      Alert.alert('Error', 'Failed to create timer. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+  // Simple submit function - like your addItem example
+  const handleSubmit = () => {
+    // Validate timer name
+    if (!name.trim()) {
+      Alert.alert('Error', 'Please enter a timer name');
+      return;
     }
+
+    // Validate duration
+    if (!duration.trim()) {
+      Alert.alert('Error', 'Please enter a duration');
+      return;
+    }
+
+    const durationSeconds = parseDuration(duration);
+    if (durationSeconds <= 0) {
+      Alert.alert('Error', 'Please enter a valid duration (e.g., "5:00" for 5 minutes)');
+      return;
+    }
+
+    const timerCategory = customCategory.trim() || category || 'Other';
+
+    // Simple function call - just like your addItem
+    addTimer(name, durationSeconds, timerCategory, halfwayAlert);
+    
+    Alert.alert(
+      'Timer Created',
+      `"${name}" has been added successfully!`,
+      [
+        {
+          text: 'Add Another',
+          onPress: resetForm,
+        },
+        {
+          text: 'View Timers',
+          onPress: () => {
+            resetForm();
+            router.push('/');
+          },
+        },
+      ]
+    );
   };
 
   const styles = StyleSheet.create({
@@ -202,4 +185,155 @@ export default function AddTimerScreen() {
       padding: 2,
       justifyContent: 'center',
     },
-    
+    switchThumb: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: colors.background,
+    },
+    submitButton: {
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+      marginTop: 12,
+    },
+    submitButtonText: {
+      color: colors.background,
+      fontSize: 18,
+      fontWeight: '600',
+    },
+  });
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Add New Timer</Text>
+      </View>
+
+      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            <Clock size={20} color={colors.primary} style={styles.sectionIcon} />
+            Timer Name
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g., Morning Workout"
+            placeholderTextColor={colors.textSecondary}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            <Clock size={20} color={colors.primary} style={styles.sectionIcon} />
+            Duration
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={duration}
+            onChangeText={setDuration}
+            placeholder="e.g., 25:00 or 1:30:00"
+            placeholderTextColor={colors.textSecondary}
+          />
+          <Text style={styles.durationHelp}>
+            Format: MM:SS or HH:MM:SS (e.g., "5:00" for 5 minutes)
+          </Text>
+          
+          <View style={styles.presetGrid}>
+            {PRESET_DURATIONS.map(preset => (
+              <TouchableOpacity
+                key={preset.value}
+                style={[
+                  styles.presetButton,
+                  duration === preset.value && styles.presetButtonSelected
+                ]}
+                onPress={() => setDuration(preset.value)}
+              >
+                <Text style={[
+                  styles.presetButtonText,
+                  duration === preset.value && styles.presetButtonTextSelected
+                ]}>
+                  {preset.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            <Tag size={20} color={colors.primary} style={styles.sectionIcon} />
+            Category
+          </Text>
+          <View style={styles.presetGrid}>
+            {PRESET_CATEGORIES.map(cat => (
+              <TouchableOpacity
+                key={cat}
+                style={[
+                  styles.presetButton,
+                  category === cat && styles.presetButtonSelected
+                ]}
+                onPress={() => {
+                  setCategory(cat);
+                  setCustomCategory('');
+                }}
+              >
+                <Text style={[
+                  styles.presetButtonText,
+                  category === cat && styles.presetButtonTextSelected
+                ]}>
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <TextInput
+            style={[styles.input, { marginTop: 12 }]}
+            value={customCategory}
+            onChangeText={(text) => {
+              setCustomCategory(text);
+              if (text) setCategory('');
+            }}
+            placeholder="Or enter custom category"
+            placeholderTextColor={colors.textSecondary}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            <Bell size={20} color={colors.primary} style={styles.sectionIcon} />
+            Options
+          </Text>
+          <TouchableOpacity
+            style={styles.optionRow}
+            onPress={() => setHalfwayAlert(!halfwayAlert)}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.optionText}>Halfway Alert</Text>
+              <Text style={styles.optionDescription}>
+                Get notified when timer reaches 50% completion
+              </Text>
+            </View>
+            <View style={[
+              styles.switch,
+              { backgroundColor: halfwayAlert ? colors.primary : colors.border }
+            ]}>
+              <View style={[
+                styles.switchThumb,
+                { alignSelf: halfwayAlert ? 'flex-end' : 'flex-start' }
+              ]} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+          <Text style={styles.submitButtonText}>Create Timer</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
