@@ -1,311 +1,246 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { Play, Pause, RotateCcw, Trash2, Clock } from 'lucide-react-native';
-import { Timer } from '@/types/timer';
-import { formatTime, getProgressPercentage } from '@/utils/timerUtils';
-import { useThemeContext } from './ThemeProvider';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Timer, TimerHistory, Category } from '@/types/timer';
+import { useAsyncStorage } from './useAsyncStorage';
+import { generateId } from '@/utils/timerUtils';
 
-interface TimerItemProps {
-  timer: Timer;
-  onStart: () => void;
-  onPause: () => void;
-  onReset: () => void;
-  onDelete: () => void;
-}
+export function useTimers() {
+  const [timers, setTimers] = useAsyncStorage<Timer[]>('timers', []);
+  const [history, setHistory] = useAsyncStorage<TimerHistory[]>('timer_history', []);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryExpansionState, setCategoryExpansionState] = useState<Record<string, boolean>>({});
+  const intervalRefs = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
-export function TimerItem({ timer, onStart, onPause, onReset, onDelete }: TimerItemProps) {
-  const { colors } = useThemeContext();
-  
-  const progress = getProgressPercentage(timer.remainingTime, timer.duration);
-  const isRunning = timer.status === 'running';
-  const isCompleted = timer.status === 'completed';
-  const isPaused = timer.status === 'paused';
-  const canStart = timer.remainingTime > 0 && !isRunning;
+  useEffect(() => {
+    updateCategories();
+    
+    // Cleanup intervals on unmount
+    return () => {
+      intervalRefs.current.forEach(interval => clearInterval(interval));
+      intervalRefs.current.clear();
+    };
+  }, [timers, categoryExpansionState]);
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Delete Timer',
-      `Are you sure you want to delete "${timer.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: onDelete },
-      ]
-    );
-  };
+  const updateCategories = useCallback(() => {
+    const categoryMap = new Map<string, Category>();
+    
+    timers.forEach(timer => {
+      if (!categoryMap.has(timer.category)) {
+        // New categories are expanded by default, existing ones keep their state
+        const isExpanded = categoryExpansionState[timer.category] !== undefined 
+          ? categoryExpansionState[timer.category] 
+          : true;
+          
+        categoryMap.set(timer.category, {
+          name: timer.category,
+          timers: [],
+          isExpanded,
+        });
+      }
+      categoryMap.get(timer.category)!.timers.push(timer);
+    });
+    
+    const newCategories = Array.from(categoryMap.values());
+    setCategories(newCategories);
+  }, [timers, categoryExpansionState]);
 
-  const handleStartPause = () => {
-    if (isRunning) {
-      onPause();
-    } else if (canStart) {
-      onStart();
+  const addTimer = useCallback((name: string, duration: number, category: string, halfwayAlert = false) => {
+    const newTimer: Timer = {
+      id: generateId(),
+      name,
+      duration,
+      category,
+      remainingTime: duration,
+      status: 'idle',
+      createdAt: new Date(),
+      halfwayAlert,
+      halfwayAlertTriggered: false,
+    };
+    
+    // Ensure the category is expanded when adding a new timer
+    setCategoryExpansionState(prev => ({
+      ...prev,
+      [category]: true
+    }));
+    
+    setTimers(prev => [...prev, newTimer]);
+  }, [setTimers]);
+
+  const updateTimer = useCallback((id: string, updates: Partial<Timer>) => {
+    setTimers(prev => prev.map(timer => 
+      timer.id === id ? { ...timer, ...updates } : timer
+    ));
+  }, [setTimers]);
+
+  const addToHistory = useCallback((timer: Timer) => {
+    const historyEntry: TimerHistory = {
+      id: generateId(),
+      name: timer.name,
+      category: timer.category,
+      duration: timer.duration,
+      completedAt: new Date(),
+    };
+    setHistory(prev => [historyEntry, ...prev]);
+  }, [setHistory]);
+
+  const startTimer = useCallback((id: string) => {
+    // Clear any existing interval for this timer first
+    const existingInterval = intervalRefs.current.get(id);
+    if (existingInterval) {
+      clearInterval(existingInterval);
+      intervalRefs.current.delete(id);
     }
-  };
 
-  const styles = StyleSheet.create({
-    container: {
-      backgroundColor: colors.surface,
-      borderRadius: 16,
-      padding: 20,
-      marginVertical: 8,
-      borderWidth: 1,
-      borderColor: isRunning ? colors.success + '40' : colors.border,
-      shadowColor: colors.text,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    nameContainer: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    name: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: colors.text,
-      marginLeft: 8,
-    },
-    status: {
-      fontSize: 12,
-      fontWeight: '600',
-      textTransform: 'uppercase',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 12,
-      overflow: 'hidden',
-      letterSpacing: 0.5,
-    },
-    progressContainer: {
-      marginBottom: 16,
-    },
-    progressBackground: {
-      height: 6,
-      backgroundColor: colors.border,
-      borderRadius: 3,
-      overflow: 'hidden',
-    },
-    progressBar: {
-      height: '100%',
-      borderRadius: 3,
-    },
-    timeContainer: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    timeText: {
-      fontSize: 32,
-      fontWeight: 'bold',
-      color: isRunning ? colors.success : colors.text,
-      fontVariant: ['tabular-nums'],
-    },
-    progressText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
-    controls: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    mainControls: {
-      flexDirection: 'row',
-      flex: 1,
-    },
-    controlButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 12,
-      flex: 1,
-      marginRight: 8,
-      justifyContent: 'center',
-    },
-    controlButtonDisabled: {
-      opacity: 0.5,
-    },
-    controlButtonText: {
-      marginLeft: 8,
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    deleteButton: {
-      padding: 12,
-      borderRadius: 12,
-      backgroundColor: colors.error + '15',
-      marginLeft: 8,
-    },
-    completedContainer: {
-      alignItems: 'center',
-      paddingVertical: 8,
-    },
-    completedText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: colors.success,
-      marginBottom: 8,
-    },
-    halfwayAlert: {
-      backgroundColor: colors.warning + '20',
-      borderColor: colors.warning + '40',
-      borderWidth: 1,
-      borderRadius: 8,
-      padding: 8,
-      marginBottom: 12,
-    },
-    halfwayAlertText: {
-      fontSize: 12,
-      color: colors.warning,
-      textAlign: 'center',
-      fontWeight: '500',
-    },
-  });
+    // Get current timer state and start if valid
+    setTimers(prevTimers => {
+      const timer = prevTimers.find(t => t.id === id);
+      if (!timer || timer.status === 'running' || timer.remainingTime <= 0) {
+        return prevTimers;
+      }
 
-  const getStatusStyle = () => {
-    switch (timer.status) {
-      case 'running':
-        return { backgroundColor: colors.success + '20', color: colors.success };
-      case 'paused':
-        return { backgroundColor: colors.warning + '20', color: colors.warning };
-      case 'completed':
-        return { backgroundColor: colors.primary + '20', color: colors.primary };
-      default:
-        return { backgroundColor: colors.border, color: colors.textSecondary };
-    }
-  };
+      // Update timer to running status
+      const updatedTimers = prevTimers.map(t => 
+        t.id === id ? { ...t, status: 'running' as const } : t
+      );
 
-  const getProgressColor = () => {
-    if (isCompleted) return colors.success;
-    if (isRunning) return colors.success;
-    if (progress > 75) return colors.success;
-    if (progress > 50) return colors.warning;
-    return colors.primary;
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.nameContainer}>
-          <Clock size={20} color={isRunning ? colors.success : colors.textSecondary} />
-          <Text style={styles.name}>{timer.name}</Text>
-        </View>
-        <Text style={[styles.status, getStatusStyle()]}>
-          {timer.status}
-        </Text>
-      </View>
-
-      {timer.halfwayAlert && timer.halfwayAlertTriggered && !isCompleted && (
-        <View style={styles.halfwayAlert}>
-          <Text style={styles.halfwayAlertText}>
-            🔔 Halfway point reached!
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBackground}>
-          <View 
-            style={[
-              styles.progressBar, 
-              { 
-                width: `${progress}%`,
-                backgroundColor: getProgressColor(),
+      // Start the countdown interval
+      const interval = setInterval(() => {
+        setTimers(currentTimers => {
+          return currentTimers.map(t => {
+            if (t.id === id && t.status === 'running') {
+              const newRemainingTime = Math.max(0, t.remainingTime - 1);
+              
+              // Check for halfway alert
+              if (t.halfwayAlert && !t.halfwayAlertTriggered && newRemainingTime <= t.duration / 2 && newRemainingTime > 0) {
+                console.log(`🔔 Halfway alert for timer: ${t.name}`);
+                return { ...t, remainingTime: newRemainingTime, halfwayAlertTriggered: true };
               }
-            ]} 
-          />
-        </View>
-      </View>
+              
+              // Check if timer completed
+              if (newRemainingTime === 0) {
+                // Clear the interval
+                const currentInterval = intervalRefs.current.get(id);
+                if (currentInterval) {
+                  clearInterval(currentInterval);
+                  intervalRefs.current.delete(id);
+                }
+                
+                // Add to history
+                const historyEntry: TimerHistory = {
+                  id: generateId(),
+                  name: t.name,
+                  category: t.category,
+                  duration: t.duration,
+                  completedAt: new Date(),
+                };
+                setHistory(prev => [historyEntry, ...prev]);
+                
+                console.log(`✅ Timer completed: ${t.name}`);
+                return { ...t, remainingTime: 0, status: 'completed' as const };
+              }
+              
+              return { ...t, remainingTime: newRemainingTime };
+            }
+            return t;
+          });
+        });
+      }, 1000);
+      
+      intervalRefs.current.set(id, interval);
+      return updatedTimers;
+    });
+  }, [setTimers, setHistory]);
 
-      <View style={styles.timeContainer}>
-        <Text style={styles.timeText}>
-          {formatTime(timer.remainingTime)}
-        </Text>
-        <Text style={styles.progressText}>
-          {Math.round(progress)}% complete
-        </Text>
-      </View>
+  const pauseTimer = useCallback((id: string) => {
+    const interval = intervalRefs.current.get(id);
+    if (interval) {
+      clearInterval(interval);
+      intervalRefs.current.delete(id);
+    }
+    updateTimer(id, { status: 'paused' });
+  }, [updateTimer]);
 
-      {isCompleted ? (
-        <View style={styles.completedContainer}>
-          <Text style={styles.completedText}>✅ Timer Completed!</Text>
-          <View style={styles.controls}>
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                { backgroundColor: colors.secondary + '20', flex: 1 }
-              ]}
-              onPress={onReset}
-            >
-              <RotateCcw size={18} color={colors.secondary} />
-              <Text style={[styles.controlButtonText, { color: colors.secondary }]}>
-                Reset
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={handleDelete}
-            >
-              <Trash2 size={18} color={colors.error} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.controls}>
-          <View style={styles.mainControls}>
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                { backgroundColor: isRunning ? colors.warning + '20' : colors.success + '20' },
-                !canStart && !isRunning && styles.controlButtonDisabled
-              ]}
-              onPress={handleStartPause}
-              disabled={!canStart && !isRunning}
-            >
-              {isRunning ? (
-                <Pause size={18} color={colors.warning} />
-              ) : (
-                <Play size={18} color={colors.success} />
-              )}
-              <Text style={[
-                styles.controlButtonText,
-                { color: isRunning ? colors.warning : colors.success }
-              ]}>
-                {isRunning ? 'Pause' : 'Start'}
-              </Text>
-            </TouchableOpacity>
+  const resetTimer = useCallback((id: string) => {
+    const interval = intervalRefs.current.get(id);
+    if (interval) {
+      clearInterval(interval);
+      intervalRefs.current.delete(id);
+    }
+    
+    setTimers(prev => prev.map(timer => {
+      if (timer.id === id) {
+        return {
+          ...timer,
+          remainingTime: timer.duration,
+          status: 'idle' as const,
+          halfwayAlertTriggered: false,
+        };
+      }
+      return timer;
+    }));
+  }, [setTimers]);
 
-            <TouchableOpacity
-              style={[
-                styles.controlButton,
-                { backgroundColor: colors.secondary + '20' }
-              ]}
-              onPress={onReset}
-            >
-              <RotateCcw size={18} color={colors.secondary} />
-              <Text style={[styles.controlButtonText, { color: colors.secondary }]}>
-                Reset
-              </Text>
-            </TouchableOpacity>
-          </View>
+  const deleteTimer = useCallback((id: string) => {
+    const interval = intervalRefs.current.get(id);
+    if (interval) {
+      clearInterval(interval);
+      intervalRefs.current.delete(id);
+    }
+    setTimers(prev => prev.filter(timer => timer.id !== id));
+  }, [setTimers]);
 
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={handleDelete}
-          >
-            <Trash2 size={18} color={colors.error} />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
+  const startAllInCategory = useCallback((category: string) => {
+    const categoryTimers = timers.filter(t => 
+      t.category === category && t.status !== 'completed' && t.remainingTime > 0
+    );
+    categoryTimers.forEach(timer => {
+      if (timer.status !== 'running') {
+        startTimer(timer.id);
+      }
+    });
+  }, [timers, startTimer]);
+
+  const pauseAllInCategory = useCallback((category: string) => {
+    const categoryTimers = timers.filter(t => 
+      t.category === category && t.status === 'running'
+    );
+    categoryTimers.forEach(timer => pauseTimer(timer.id));
+  }, [timers, pauseTimer]);
+
+  const resetAllInCategory = useCallback((category: string) => {
+    const categoryTimers = timers.filter(t => t.category === category);
+    categoryTimers.forEach(timer => resetTimer(timer.id));
+  }, [timers, resetTimer]);
+
+  const toggleCategoryExpansion = useCallback((categoryName: string) => {
+    setCategoryExpansionState(prev => ({
+      ...prev,
+      [categoryName]: !prev[categoryName]
+    }));
+  }, []);
+
+  const exportData = useCallback(() => {
+    const exportData = {
+      timers,
+      history,
+      exportedAt: new Date().toISOString(),
+    };
+    return JSON.stringify(exportData, null, 2);
+  }, [timers, history]);
+
+  return {
+    timers,
+    history,
+    categories,
+    addTimer,
+    updateTimer,
+    startTimer,
+    pauseTimer,
+    resetTimer,
+    deleteTimer,
+    startAllInCategory,
+    pauseAllInCategory,
+    resetAllInCategory,
+    toggleCategoryExpansion,
+    exportData,
+  };
 }
