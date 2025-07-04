@@ -72,8 +72,9 @@ export default function HomeScreen() {
     router.push('/add-timer');
   };
 
-  // Simple delete function - like your deleteItem example
+  // Immediate delete function
   const handleDeleteTimer = (id: string) => {
+    console.log('Home screen deleting timer:', id);
     deleteTimer(id);
   };
 
