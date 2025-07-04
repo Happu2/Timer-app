@@ -38,9 +38,8 @@ export function useAsyncStorage<T>(key: string, initialValue: T) {
       // Update state immediately for better UX
       setStoredValue(newValue);
       
-      // Then persist to storage
+      // Then persist to storage (without excessive logging)
       await AsyncStorage.setItem(key, JSON.stringify(newValue));
-      console.log(`Successfully saved ${key} to storage`);
     } catch (error) {
       console.error(`Error saving ${key} to storage:`, error);
       // Revert to previous value on error

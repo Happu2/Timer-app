@@ -74,7 +74,6 @@ export default function HomeScreen() {
 
   // Immediate delete function
   const handleDeleteTimer = (id: string) => {
-    console.log('Home screen deleting timer:', id);
     deleteTimer(id);
   };
 

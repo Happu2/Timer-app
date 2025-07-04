@@ -24,14 +24,11 @@ export function useTimers() {
             // Check for halfway alert
             if (timer.halfwayAlert && !timer.halfwayAlertTriggered && 
                 newRemainingTime <= timer.duration / 2 && newRemainingTime > 0) {
-              console.log(`🔔 Halfway alert for timer: ${timer.name}`);
               return { ...timer, remainingTime: newRemainingTime, halfwayAlertTriggered: true };
             }
             
             // Check if timer completed
             if (newRemainingTime === 0) {
-              console.log(`✅ Timer completed: ${timer.name}`);
-              
               // Add to history immediately
               const historyEntry: TimerHistory = {
                 id: generateId(),
@@ -61,6 +58,7 @@ export function useTimers() {
     return () => clearInterval(globalInterval);
   }, [setTimers, setHistory, timersLoading]);
 
+  // Update categories when timers change
   useEffect(() => {
     if (!timersLoading) {
       updateCategories();
@@ -89,43 +87,35 @@ export function useTimers() {
     setCategories(newCategories);
   }, [timers, categoryExpansionState]);
 
-  // Simple add timer function - immediate state update
+  // Add timer function with immediate UI update
   const addTimer = useCallback((name: string, duration: number, category: string, halfwayAlert = false) => {
-    if (name.trim()) {
-      const newTimer: Timer = {
-        id: generateId(),
-        name: name.trim(),
-        duration,
-        category,
-        remainingTime: duration,
-        status: 'idle',
-        createdAt: new Date(),
-        halfwayAlert,
-        halfwayAlertTriggered: false,
-      };
-      
-      console.log('Adding new timer:', newTimer);
-      
-      // Ensure the category is expanded when adding a new timer
-      setCategoryExpansionState(prev => ({
-        ...prev,
-        [category]: true
-      }));
-      
-      // Immediate state update for instant UI response
-      setTimers(prevTimers => [...prevTimers, newTimer]);
-    }
+    if (!name.trim()) return;
+    
+    const newTimer: Timer = {
+      id: generateId(),
+      name: name.trim(),
+      duration,
+      category,
+      remainingTime: duration,
+      status: 'idle',
+      createdAt: new Date(),
+      halfwayAlert,
+      halfwayAlertTriggered: false,
+    };
+    
+    // Ensure the category is expanded when adding a new timer
+    setCategoryExpansionState(prev => ({
+      ...prev,
+      [category]: true
+    }));
+    
+    // Add timer immediately to state
+    setTimers(prevTimers => [...prevTimers, newTimer]);
   }, [setTimers]);
 
-  // Immediate delete timer function
+  // Delete timer function with immediate UI update
   const deleteTimer = useCallback((id: string) => {
-    console.log('Deleting timer with id:', id);
-    // Immediate state update for instant UI response
-    setTimers(prevTimers => {
-      const filtered = prevTimers.filter(timer => timer.id !== id);
-      console.log('Timers after delete:', filtered.length);
-      return filtered;
-    });
+    setTimers(prevTimers => prevTimers.filter(timer => timer.id !== id));
   }, [setTimers]);
 
   const updateTimer = useCallback((id: string, updates: Partial<Timer>) => {
@@ -137,7 +127,6 @@ export function useTimers() {
   const startTimer = useCallback((id: string) => {
     setTimers(prev => prev.map(timer => {
       if (timer.id === id && timer.status !== 'running' && timer.remainingTime > 0) {
-        console.log(`Starting timer: ${timer.name}`);
         return { ...timer, status: 'running' as const };
       }
       return timer;
@@ -151,7 +140,6 @@ export function useTimers() {
   const resetTimer = useCallback((id: string) => {
     setTimers(prev => prev.map(timer => {
       if (timer.id === id) {
-        console.log(`Resetting timer: ${timer.name}`);
         return {
           ...timer,
           remainingTime: timer.duration,
