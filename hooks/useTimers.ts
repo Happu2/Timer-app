@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Timer, TimerHistory, Category } from '@/types/timer';
 import { useAsyncStorage } from '@/hooks/useAsyncStorage';
 import { generateId } from '@/utils/timerUtils';
@@ -109,13 +109,19 @@ export function useTimers() {
       [category]: true
     }));
     
-    // Add timer immediately to state
-    setTimers(prevTimers => [...prevTimers, newTimer]);
+    // Add timer immediately to state - this should trigger immediate UI update
+    setTimers(prevTimers => {
+      const newTimers = [...prevTimers, newTimer];
+      return newTimers;
+    });
   }, [setTimers]);
 
   // Delete timer function with immediate UI update
   const deleteTimer = useCallback((id: string) => {
-    setTimers(prevTimers => prevTimers.filter(timer => timer.id !== id));
+    setTimers(prevTimers => {
+      const filteredTimers = prevTimers.filter(timer => timer.id !== id);
+      return filteredTimers;
+    });
   }, [setTimers]);
 
   const updateTimer = useCallback((id: string, updates: Partial<Timer>) => {

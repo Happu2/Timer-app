@@ -31,7 +31,7 @@ export function TimerItem({ timer, onStart, onPause, onReset, onDelete }: TimerI
           text: 'Delete', 
           style: 'destructive', 
           onPress: () => {
-            console.log('Deleting timer:', timer.id, timer.name);
+            // Call the delete function immediately
             onDelete();
           }
         },
